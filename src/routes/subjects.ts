@@ -8,12 +8,14 @@ const router = express.Router();
 router.get('/', async (req, res) => {
   try {
 
-    const {search, department, page = 1, limit = 10} = req.query;
-    const currentPage = Math.max(1, +page)
-    const limitPerPage = Math.max(1, +limit)
+    const {search, department, page = '1', limit = '10'} = req.query;
+    const parsedPage = Number.parseInt(String(page), 10);
+    const parsedLimit = Number.parseInt(String(limit), 10);
+    const currentPage = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+    const limitPerPage = Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, 100) : 10;
     const offset = (currentPage - 1) * limitPerPage;
 
-    const filterConditions: any[] = []
+    const filterConditions = []
 
     if (search) {
       filterConditions.push(
@@ -24,7 +26,9 @@ router.get('/', async (req, res) => {
       )
     }
 
-    if (department) {filterConditions.push(departments.name, `%${department}%`)}
+       if (typeof department === 'string' && department.trim()) {
+           filterConditions.push(ilike(departments.name, `%${department.trim()}%`));
+       }
 
     const whereClause = filterConditions.length > 0 ? and(...filterConditions) : undefined;
 
@@ -37,7 +41,7 @@ router.get('/', async (req, res) => {
 
     const subjectsList = await db
       .select({
-        ...getTableColumns(subjects),department: {...getTableColumns(departments)}
+        ...getTableColumns(subjects), department: {...getTableColumns(departments)}
       })
       .from(subjects)
       .leftJoin(departments, eq(subjects.departmentId, departments.id))
